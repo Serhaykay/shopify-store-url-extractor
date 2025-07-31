@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Store URL Extractor</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ Shopify Store Extractor</h1>
+            <p>Extract original Shopify store URLs</p>
+        </div>
+        
+        <div class="input-section">
+            <label for="urlInput">Enter Website URL:</label>
+            <div class="input-group">
+                <input type="url" id="urlInput" placeholder="https://example.com" />
+                <button id="extractBtn">Extract</button>
+            </div>
+        </div>
+        
+        <div class="result-section" id="resultSection" style="display: none;">
+            <h3>Results:</h3>
+            <div class="result-item">
+                <label>Original URL:</label>
+                <div class="url-display" id="originalUrl"></div>
+            </div>
+            <div class="result-item">
+                <label>Shopify Store URL:</label>
+                <div class="url-display" id="shopifyUrl"></div>
+                <button id="copyBtn" class="copy-btn">Copy</button>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analyzing URL...</p>
+        </div>
+        
+        <div class="error" id="error" style="display: none;">
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html> 

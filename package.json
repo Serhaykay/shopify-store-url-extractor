@@ -1,0 +1,30 @@
+{
+  "name": "shopify-store-url-extractor",
+  "version": "1.0.0",
+  "description": "A Chrome extension that extracts original Shopify store URLs from website URLs",
+  "main": "popup.js",
+  "scripts": {
+    "build": "echo 'Extension is ready to load in Chrome'",
+    "test": "echo 'No tests specified'",
+    "lint": "echo 'No linter configured'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "shopify",
+    "url-extractor",
+    "ecommerce",
+    "web-development"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/shopify-store-url-extractor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/shopify-store-url-extractor/issues"
+  },
+  "homepage": "https://github.com/yourusername/shopify-store-url-extractor#readme",
+  "devDependencies": {},
+  "dependencies": {}
+} 

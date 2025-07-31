@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Shopify Store URL Extractor",
+  "version": "1.0",
+  "description": "Extract original Shopify store URLs from website URLs",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Shopify Store URL Extractor"
+  },
+  "icons": {
+    "16": "icons/icon16.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+} 
