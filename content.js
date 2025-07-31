@@ -108,16 +108,16 @@
             return url;
         }
 
-        // Method 1: Look for Shopify store URL in meta tags
-        const shopifyUrl = extractFromMetaTags();
+        // Method 1: Look for Shopify store URL in scripts (most reliable)
+        const shopifyUrl = extractFromScripts();
         if (shopifyUrl) {
             return shopifyUrl;
         }
 
-        // Method 2: Look for Shopify store URL in scripts
-        const scriptUrl = extractFromScripts();
-        if (scriptUrl) {
-            return scriptUrl;
+        // Method 2: Look for Shopify store URL in meta tags
+        const metaUrl = extractFromMetaTags();
+        if (metaUrl) {
+            return metaUrl;
         }
 
         // Method 3: Look for Shopify store URL in JSON-LD structured data
@@ -154,6 +154,56 @@
         return extractFromDomain();
     }
 
+    // Function to extract theme name from current page
+    function extractCurrentThemeName() {
+        // Method 1: Look for theme name in scripts
+        const scriptTheme = extractThemeFromScripts();
+        if (scriptTheme) {
+            return scriptTheme;
+        }
+
+        // Method 2: Look for theme name in meta tags
+        const metaTheme = extractThemeFromMetaTags();
+        if (metaTheme) {
+            return metaTheme;
+        }
+
+        // Method 3: Look for theme name in data attributes
+        const dataTheme = extractThemeFromDataAttributes();
+        if (dataTheme) {
+            return dataTheme;
+        }
+
+        // Method 4: Look for theme name in comments
+        const commentTheme = extractThemeFromComments();
+        if (commentTheme) {
+            return commentTheme;
+        }
+
+        return null;
+    }
+
+    function extractFromScripts() {
+        const scripts = document.querySelectorAll('script');
+        
+        for (const script of scripts) {
+            const src = script.getAttribute('src') || '';
+            const content = script.textContent || '';
+            
+            // Look for Shopify store IDs in script content
+            const storeId = extractStoreIdFromString(content);
+            if (storeId) {
+                return `https://${storeId}.myshopify.com`;
+            }
+            
+            // Look for Shopify URLs in script src
+            const shopifyUrl = extractShopifyUrlFromString(src);
+            if (shopifyUrl) return shopifyUrl;
+        }
+        
+        return null;
+    }
+
     function extractFromMetaTags() {
         const metaTags = document.querySelectorAll('meta');
         
@@ -171,25 +221,6 @@
                 const shopifyUrl = extractShopifyUrlFromString(content);
                 if (shopifyUrl) return shopifyUrl;
             }
-        }
-        
-        return null;
-    }
-
-    function extractFromScripts() {
-        const scripts = document.querySelectorAll('script');
-        
-        for (const script of scripts) {
-            const src = script.getAttribute('src') || '';
-            const content = script.textContent || '';
-            
-            // Look for Shopify URLs in script src
-            const shopifyUrl = extractShopifyUrlFromString(src);
-            if (shopifyUrl) return shopifyUrl;
-            
-            // Look for Shopify URLs in script content
-            const shopifyUrlFromContent = extractShopifyUrlFromString(content);
-            if (shopifyUrlFromContent) return shopifyUrlFromContent;
         }
         
         return null;
@@ -304,38 +335,42 @@
             return myshopifyMatch[0];
         }
 
-        // Look for shopify.com/s/ URLs
-        const shopifySPattern = /https?:\/\/shopify\.com\/s\/([a-zA-Z0-9-]+)/gi;
-        const shopifySMatch = str.match(shopifySPattern);
-        if (shopifySMatch) {
-            return shopifySMatch[0];
-        }
+        return null;
+    }
 
-        // Look for store names that could be converted to myshopify.com
-        const storeNamePattern = /"([a-zA-Z0-9-]+)"[^"]*shopify/gi;
-        const storeNameMatch = str.match(storeNamePattern);
-        if (storeNameMatch) {
-            const storeName = storeNameMatch[1];
-            if (storeName.length > 2) {
-                return `https://${storeName}.myshopify.com`;
-            }
-        }
-
-        // Look for Shopify store names in various patterns
+    function extractStoreIdFromString(str) {
+        if (!str) return null;
+        
+        // Look for Shopify store ID patterns
         const patterns = [
-            /shopify\.com\/s\/([a-zA-Z0-9-]+)/gi,
-            /myshopify\.com\/([a-zA-Z0-9-]+)/gi,
-            /"shop":"([a-zA-Z0-9-]+)"/gi,
-            /"store":"([a-zA-Z0-9-]+)"/gi,
-            /shopify\.com\/admin\/stores\/([a-zA-Z0-9-]+)/gi
+            /"shop":"([a-zA-Z0-9-]+)"/,
+            /'shop':'([a-zA-Z0-9-]+)'/,
+            /shop:"([a-zA-Z0-9-]+)"/,
+            /shop:'([a-zA-Z0-9-]+)'/,
+            /"store":"([a-zA-Z0-9-]+)"/,
+            /'store':'([a-zA-Z0-9-]+)'/,
+            /store:"([a-zA-Z0-9-]+)"/,
+            /store:'([a-zA-Z0-9-]+)'/,
+            /"shop_id":"([a-zA-Z0-9-]+)"/,
+            /'shop_id':'([a-zA-Z0-9-]+)'/,
+            /shop_id:"([a-zA-Z0-9-]+)"/,
+            /shop_id:'([a-zA-Z0-9-]+)'/,
+            /https?:\/\/([a-zA-Z0-9-]+)\.myshopify\.com/,
+            /"([a-zA-Z0-9-]+)\.myshopify\.com"/,
+            /'([a-zA-Z0-9-]+)\.myshopify\.com'/,
+            /shopify\.com\/admin\/stores\/([a-zA-Z0-9-]+)/,
+            /shopify\.com\/s\/([a-zA-Z0-9-]+)/,
+            /cdn\.shopify\.com\/s\/files\/[^\/]+\/([a-zA-Z0-9-]+)/,
+            /cdn\.shopify\.com\/s\/[^\/]+\/([a-zA-Z0-9-]+)/
         ];
 
         for (const pattern of patterns) {
-            const matches = str.match(pattern);
-            if (matches) {
-                const storeName = matches[1];
-                if (storeName && storeName.length > 2) {
-                    return `https://${storeName}.myshopify.com`;
+            const match = str.match(pattern);
+            if (match && match[1]) {
+                const storeId = match[1];
+                // Validate store ID format (should be alphanumeric with hyphens)
+                if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length > 3) {
+                    return storeId;
                 }
             }
         }
@@ -356,17 +391,154 @@
         return null;
     }
 
+    // Theme extraction functions
+    function extractThemeFromScripts() {
+        const scripts = document.querySelectorAll('script');
+        
+        for (const script of scripts) {
+            const content = script.textContent || '';
+            
+            // Look for theme name patterns in script content
+            const themeName = extractThemeNameFromString(content);
+            if (themeName) return themeName;
+        }
+        
+        return null;
+    }
+
+    function extractThemeFromMetaTags() {
+        const metaTags = document.querySelectorAll('meta');
+        
+        for (const meta of metaTags) {
+            const name = meta.getAttribute('name') || '';
+            const property = meta.getAttribute('property') || '';
+            const content = meta.getAttribute('content') || '';
+            
+            // Look for theme-related meta tags
+            if (name === 'theme' || property === 'theme') {
+                if (content && content.trim()) {
+                    return content.trim();
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    function extractThemeFromDataAttributes() {
+        const dataAttributes = [
+            'data-theme',
+            'data-theme-name'
+        ];
+        
+        for (const attr of dataAttributes) {
+            const elements = document.querySelectorAll(`[${attr}]`);
+            for (const element of elements) {
+                const value = element.getAttribute(attr) || '';
+                if (value && value.trim()) {
+                    return value.trim();
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    function extractThemeFromComments() {
+        // Get all comments from the document
+        const walker = document.createTreeWalker(
+            document,
+            NodeFilter.SHOW_COMMENT,
+            null,
+            false
+        );
+        
+        let comment;
+        while (comment = walker.nextNode()) {
+            const themeName = extractThemeNameFromString(comment.textContent);
+            if (themeName) return themeName;
+        }
+        
+        return null;
+    }
+
+    function extractThemeNameFromString(str) {
+        if (!str) return null;
+        
+        // Look for theme name patterns
+        const patterns = [
+            /Shopify\.theme\s*=\s*["']([^"']+)["']/gi,
+            /Shopify\.theme\s*=\s*{[\s\S]*?"name":\s*["']([^"']+)["'][\s\S]*?}/gi,
+            /"theme":\s*["']([^"']+)["']/gi,
+            /'theme':\s*['"]([^'"]+)['"]/gi,
+            /theme:\s*["']([^"']+)["']/gi,
+            /theme:\s*'([^']+)'/gi,
+            /"theme_name":\s*["']([^"']+)["']/gi,
+            /'theme_name':\s*['"]([^'"]+)['"]/gi,
+            /"themeName":\s*["']([^"']+)["']/gi,
+            /'themeName':\s*['"]([^'"]+)['"]/gi,
+            /var\s+theme\s*=\s*["']([^"']+)["']/gi,
+            /let\s+theme\s*=\s*["']([^"']+)["']/gi,
+            /const\s+theme\s*=\s*["']([^"']+)["']/gi
+        ];
+
+        for (const pattern of patterns) {
+            const matches = str.match(pattern);
+            if (matches) {
+                for (const match of matches) {
+                    const themeName = extractThemeNameFromMatch(match);
+                    if (themeName) return themeName;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function extractThemeNameFromMatch(match) {
+        // Extract theme name from the matched string
+        const patterns = [
+            /Shopify\.theme\s*=\s*["']([^"']+)["']/i,
+            /Shopify\.theme\s*=\s*{[\s\S]*?"name":\s*["']([^"']+)["'][\s\S]*?}/i,
+            /"theme":\s*["']([^"']+)["']/i,
+            /'theme':\s*['"]([^'"]+)['"]/i,
+            /theme:\s*["']([^"']+)["']/i,
+            /theme:\s*'([^']+)'/i,
+            /"theme_name":\s*["']([^"']+)["']/i,
+            /'theme_name':\s*['"]([^'"]+)['"]/i,
+            /"themeName":\s*["']([^"']+)["']/i,
+            /'themeName':\s*['"]([^'"]+)['"]/i,
+            /var\s+theme\s*=\s*["']([^"']+)["']/i,
+            /let\s+theme\s*=\s*["']([^"']+)["']/i,
+            /const\s+theme\s*=\s*["']([^"']+)["']/i
+        ];
+
+        for (const pattern of patterns) {
+            const themeMatch = match.match(pattern);
+            if (themeMatch && themeMatch[1]) {
+                const themeName = themeMatch[1].trim();
+                if (themeName.length > 0) {
+                    return themeName;
+                }
+            }
+        }
+
+        return null;
+    }
+
     // Listen for messages from popup
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'detectShopify') {
             const detection = detectShopifyStore();
             const shopifyUrl = extractCurrentShopifyUrl();
+            const themeName = extractCurrentThemeName();
             
             sendResponse({
                 isShopify: detection.isShopify,
                 confidence: detection.confidence,
                 score: detection.score,
                 shopifyUrl: shopifyUrl,
+                themeName: themeName,
                 currentUrl: window.location.href
             });
         }
@@ -376,6 +548,7 @@
     const detection = detectShopifyStore();
     if (detection.isShopify) {
         const shopifyUrl = extractCurrentShopifyUrl();
+        const themeName = extractCurrentThemeName();
         
         // Store detection results for popup to access
         window.shopifyDetection = {
@@ -383,6 +556,7 @@
             confidence: detection.confidence,
             score: detection.score,
             shopifyUrl: shopifyUrl,
+            themeName: themeName,
             currentUrl: window.location.href
         };
     }

@@ -28,8 +28,8 @@ document.addEventListener('DOMContentLoaded', function() {
         hideResult();
 
         try {
-            const shopifyStoreUrl = await extractShopifyUrl(url);
-            showResult(url, shopifyStoreUrl);
+            const result = await extractShopifyInfo(url);
+            showResult(url, result.shopifyUrl, result.themeName);
         } catch (err) {
             showError(err.message);
         }
@@ -100,18 +100,37 @@ document.addEventListener('DOMContentLoaded', function() {
         error.style.display = 'none';
     }
 
-    function showResult(originalUrlText, shopifyUrlText) {
+    function showResult(originalUrlText, shopifyUrlText, themeName) {
         hideLoading();
         originalUrl.textContent = originalUrlText;
         shopifyUrl.textContent = shopifyUrlText;
+        
+        // Add theme name to the result if found
+        if (themeName) {
+            const themeElement = document.createElement('div');
+            themeElement.className = 'result-item';
+            themeElement.innerHTML = `
+                <label>Theme Name:</label>
+                <div class="url-display">${themeName}</div>
+            `;
+            resultSection.appendChild(themeElement);
+        }
+        
         resultSection.style.display = 'block';
     }
 
     function hideResult() {
         resultSection.style.display = 'none';
+        // Remove any existing theme elements
+        const themeElements = resultSection.querySelectorAll('.result-item:last-child');
+        themeElements.forEach(el => {
+            if (el.querySelector('label').textContent === 'Theme Name:') {
+                el.remove();
+            }
+        });
     }
 
-    async function extractShopifyUrl(url) {
+    async function extractShopifyInfo(url) {
         try {
             // First, try to fetch the page content
             const response = await fetch(url, {
@@ -139,65 +158,97 @@ document.addEventListener('DOMContentLoaded', function() {
         const urlObj = new URL(url);
         const hostname = urlObj.hostname.toLowerCase();
         
-        // Method 1: Look for Shopify store URL in meta tags
-        const shopifyUrl = extractFromMetaTags(html);
+        // Method 1: Look for Shopify store URL in scripts (most reliable)
+        const shopifyUrl = extractFromScripts(html);
         if (shopifyUrl) {
-            return shopifyUrl;
+            const themeName = extractThemeName(html);
+            return { shopifyUrl, themeName };
         }
 
-        // Method 2: Look for Shopify store URL in scripts
-        const scriptUrl = extractFromScripts(html);
-        if (scriptUrl) {
-            return scriptUrl;
+        // Method 2: Look for Shopify store URL in meta tags
+        const metaUrl = extractFromMetaTags(html);
+        if (metaUrl) {
+            const themeName = extractThemeName(html);
+            return { shopifyUrl: metaUrl, themeName };
         }
 
         // Method 3: Look for Shopify store URL in JSON-LD structured data
         const jsonLdUrl = extractFromJsonLd(html);
         if (jsonLdUrl) {
-            return jsonLdUrl;
+            const themeName = extractThemeName(html);
+            return { shopifyUrl: jsonLdUrl, themeName };
         }
 
         // Method 4: Look for Shopify store URL in link tags
         const linkUrl = extractFromLinkTags(html);
         if (linkUrl) {
-            return linkUrl;
+            const themeName = extractThemeName(html);
+            return { shopifyUrl: linkUrl, themeName };
         }
 
         // Method 5: Look for Shopify store URL in comments
         const commentUrl = extractFromComments(html);
         if (commentUrl) {
-            return commentUrl;
+            const themeName = extractThemeName(html);
+            return { shopifyUrl: commentUrl, themeName };
         }
 
         // Method 6: Look for Shopify store URL in inline styles
         const styleUrl = extractFromInlineStyles(html);
         if (styleUrl) {
-            return styleUrl;
+            const themeName = extractThemeName(html);
+            return { shopifyUrl: styleUrl, themeName };
         }
 
         // Method 7: Look for Shopify store URL in data attributes
         const dataUrl = extractFromDataAttributes(html);
         if (dataUrl) {
-            return dataUrl;
+            const themeName = extractThemeName(html);
+            return { shopifyUrl: dataUrl, themeName };
         }
 
         // If no Shopify URL found in page source, try pattern matching
-        return await analyzeUrlPatterns(url);
+        const fallbackUrl = await analyzeUrlPatterns(url);
+        const themeName = extractThemeName(html);
+        return { shopifyUrl: fallbackUrl, themeName };
     }
 
-    function extractFromMetaTags(html) {
-        const metaPatterns = [
-            /<meta[^>]*content=["']([^"']*shopify[^"']*)["'][^>]*>/gi,
-            /<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']*shopify[^"']*)["'][^>]*>/gi,
-            /<meta[^>]*name=["']application-name["'][^>]*content=["']([^"']*shopify[^"']*)["'][^>]*>/gi
+    function extractFromScripts(html) {
+        // Look for Shopify store ID patterns in scripts
+        const patterns = [
+            // Shopify store ID patterns
+            /"shop":"([a-zA-Z0-9-]+)"/g,
+            /'shop':'([a-zA-Z0-9-]+)'/g,
+            /shop:"([a-zA-Z0-9-]+)"/g,
+            /shop:'([a-zA-Z0-9-]+)'/g,
+            /"store":"([a-zA-Z0-9-]+)"/g,
+            /'store':'([a-zA-Z0-9-]+)'/g,
+            /store:"([a-zA-Z0-9-]+)"/g,
+            /store:'([a-zA-Z0-9-]+)'/g,
+            /"shop_id":"([a-zA-Z0-9-]+)"/g,
+            /'shop_id':'([a-zA-Z0-9-]+)'/g,
+            /shop_id:"([a-zA-Z0-9-]+)"/g,
+            /shop_id:'([a-zA-Z0-9-]+)'/g,
+            // Shopify store URL patterns
+            /https?:\/\/([a-zA-Z0-9-]+)\.myshopify\.com/g,
+            /"([a-zA-Z0-9-]+)\.myshopify\.com"/g,
+            /'([a-zA-Z0-9-]+)\.myshopify\.com'/g,
+            // Shopify API patterns
+            /shopify\.com\/admin\/stores\/([a-zA-Z0-9-]+)/g,
+            /shopify\.com\/s\/([a-zA-Z0-9-]+)/g,
+            // CDN patterns
+            /cdn\.shopify\.com\/s\/files\/[^\/]+\/([a-zA-Z0-9-]+)/g,
+            /cdn\.shopify\.com\/s\/[^\/]+\/([a-zA-Z0-9-]+)/g
         ];
 
-        for (const pattern of metaPatterns) {
+        for (const pattern of patterns) {
             const matches = html.match(pattern);
             if (matches) {
                 for (const match of matches) {
-                    const shopifyUrl = extractShopifyUrlFromString(match);
-                    if (shopifyUrl) return shopifyUrl;
+                    const storeId = extractStoreId(match);
+                    if (storeId) {
+                        return `https://${storeId}.myshopify.com`;
+                    }
                 }
             }
         }
@@ -205,20 +256,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return null;
     }
 
-    function extractFromScripts(html) {
-        const scriptPatterns = [
-            /"shopify\.com\/s\/([a-zA-Z0-9-]+)"/g,
-            /'shopify\.com\/s\/([a-zA-Z0-9-]+)'/g,
-            /shopify\.com\/s\/([a-zA-Z0-9-]+)/g,
-            /"myshopify\.com"/g,
-            /'myshopify\.com'/g,
-            /myshopify\.com/g,
-            /"cdn\.shopify\.com"/g,
-            /'cdn\.shopify\.com'/g,
-            /cdn\.shopify\.com/g
+    function extractFromMetaTags(html) {
+        const metaPatterns = [
+            /<meta[^>]*content=["']([^"']*myshopify\.com[^"']*)["'][^>]*>/gi,
+            /<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']*myshopify\.com[^"']*)["'][^>]*>/gi,
+            /<meta[^>]*name=["']application-name["'][^>]*content=["']([^"']*shopify[^"']*)["'][^>]*>/gi
         ];
 
-        for (const pattern of scriptPatterns) {
+        for (const pattern of metaPatterns) {
             const matches = html.match(pattern);
             if (matches) {
                 for (const match of matches) {
@@ -255,8 +300,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function extractFromLinkTags(html) {
         const linkPatterns = [
-            /<link[^>]*href=["']([^"']*shopify[^"']*)["'][^>]*>/gi,
-            /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']*shopify[^"']*)["'][^>]*>/gi
+            /<link[^>]*href=["']([^"']*myshopify\.com[^"']*)["'][^>]*>/gi,
+            /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']*myshopify\.com[^"']*)["'][^>]*>/gi
         ];
 
         for (const pattern of linkPatterns) {
@@ -287,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function extractFromInlineStyles(html) {
-        const stylePattern = /style=["']([^"']*shopify[^"']*)["']/gi;
+        const stylePattern = /style=["']([^"']*myshopify\.com[^"']*)["']/gi;
         const matches = html.match(stylePattern);
         
         if (matches) {
@@ -303,8 +348,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function extractFromDataAttributes(html) {
         const dataPatterns = [
             /data-shopify=["']([^"']*)["']/gi,
-            /data-store=["']([^"']*shopify[^"']*)["']/gi,
-            /data-url=["']([^"']*shopify[^"']*)["']/gi
+            /data-store=["']([^"']*myshopify\.com[^"']*)["']/gi,
+            /data-url=["']([^"']*myshopify\.com[^"']*)["']/gi
         ];
 
         for (const pattern of dataPatterns) {
@@ -328,20 +373,41 @@ document.addEventListener('DOMContentLoaded', function() {
             return myshopifyMatch[0];
         }
 
-        // Look for shopify.com/s/ URLs
-        const shopifySPattern = /https?:\/\/shopify\.com\/s\/([a-zA-Z0-9-]+)/gi;
-        const shopifySMatch = str.match(shopifySPattern);
-        if (shopifySMatch) {
-            return shopifySMatch[0];
-        }
+        return null;
+    }
 
-        // Look for store names that could be converted to myshopify.com
-        const storeNamePattern = /"([a-zA-Z0-9-]+)"[^"]*shopify/gi;
-        const storeNameMatch = str.match(storeNamePattern);
-        if (storeNameMatch) {
-            const storeName = storeNameMatch[1];
-            if (storeName.length > 2) {
-                return `https://${storeName}.myshopify.com`;
+    function extractStoreId(str) {
+        // Extract store ID from various patterns
+        const patterns = [
+            /"shop":"([a-zA-Z0-9-]+)"/,
+            /'shop':'([a-zA-Z0-9-]+)'/,
+            /shop:"([a-zA-Z0-9-]+)"/,
+            /shop:'([a-zA-Z0-9-]+)'/,
+            /"store":"([a-zA-Z0-9-]+)"/,
+            /'store':'([a-zA-Z0-9-]+)'/,
+            /store:"([a-zA-Z0-9-]+)"/,
+            /store:'([a-zA-Z0-9-]+)'/,
+            /"shop_id":"([a-zA-Z0-9-]+)"/,
+            /'shop_id':'([a-zA-Z0-9-]+)'/,
+            /shop_id:"([a-zA-Z0-9-]+)"/,
+            /shop_id:'([a-zA-Z0-9-]+)'/,
+            /https?:\/\/([a-zA-Z0-9-]+)\.myshopify\.com/,
+            /"([a-zA-Z0-9-]+)\.myshopify\.com"/,
+            /'([a-zA-Z0-9-]+)\.myshopify\.com'/,
+            /shopify\.com\/admin\/stores\/([a-zA-Z0-9-]+)/,
+            /shopify\.com\/s\/([a-zA-Z0-9-]+)/,
+            /cdn\.shopify\.com\/s\/files\/[^\/]+\/([a-zA-Z0-9-]+)/,
+            /cdn\.shopify\.com\/s\/[^\/]+\/([a-zA-Z0-9-]+)/
+        ];
+
+        for (const pattern of patterns) {
+            const match = str.match(pattern);
+            if (match && match[1]) {
+                const storeId = match[1];
+                // Validate store ID format (should be alphanumeric with hyphens)
+                if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length > 3) {
+                    return storeId;
+                }
             }
         }
 
@@ -358,6 +424,86 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result) return result;
             }
         }
+        return null;
+    }
+
+    function extractThemeName(html) {
+        // Look for theme name in various patterns
+        const themePatterns = [
+            // Shopify.theme patterns
+            /Shopify\.theme\s*=\s*["']([^"']+)["']/gi,
+            /Shopify\.theme\s*=\s*{[\s\S]*?"name":\s*["']([^"']+)["'][\s\S]*?}/gi,
+            /"theme":\s*["']([^"']+)["']/gi,
+            /'theme':\s*['"]([^'"]+)['"]/gi,
+            /theme:\s*["']([^"']+)["']/gi,
+            /theme:\s*'([^']+)'/gi,
+            // Theme name in meta tags
+            /<meta[^>]*name=["']theme["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
+            /<meta[^>]*property=["']theme["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
+            // Theme name in data attributes
+            /data-theme=["']([^"']+)["']/gi,
+            /data-theme-name=["']([^"']+)["']/gi,
+            // Theme name in comments
+            /<!--[^>]*theme[^>]*name[^>]*:([^>]+)-->/gi,
+            /<!--[^>]*theme[^>]*:([^>]+)-->/gi,
+            // Theme name in script variables
+            /var\s+theme\s*=\s*["']([^"']+)["']/gi,
+            /let\s+theme\s*=\s*["']([^"']+)["']/gi,
+            /const\s+theme\s*=\s*["']([^"']+)["']/gi,
+            // Theme name in JSON
+            /"theme_name":\s*["']([^"']+)["']/gi,
+            /'theme_name':\s*['"]([^'"]+)['"]/gi,
+            /"themeName":\s*["']([^"']+)["']/gi,
+            /'themeName':\s*['"]([^'"]+)['"]/gi
+        ];
+
+        for (const pattern of themePatterns) {
+            const matches = html.match(pattern);
+            if (matches) {
+                for (const match of matches) {
+                    const themeName = extractThemeNameFromMatch(match);
+                    if (themeName) return themeName;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function extractThemeNameFromMatch(match) {
+        // Extract theme name from the matched string
+        const patterns = [
+            /Shopify\.theme\s*=\s*["']([^"']+)["']/i,
+            /Shopify\.theme\s*=\s*{[\s\S]*?"name":\s*["']([^"']+)["'][\s\S]*?}/i,
+            /"theme":\s*["']([^"']+)["']/i,
+            /'theme':\s*['"]([^'"]+)['"]/i,
+            /theme:\s*["']([^"']+)["']/i,
+            /theme:\s*'([^']+)'/i,
+            /<meta[^>]*name=["']theme["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+            /<meta[^>]*property=["']theme["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+            /data-theme=["']([^"']+)["']/i,
+            /data-theme-name=["']([^"']+)["']/i,
+            /<!--[^>]*theme[^>]*name[^>]*:([^>]+)-->/i,
+            /<!--[^>]*theme[^>]*:([^>]+)-->/i,
+            /var\s+theme\s*=\s*["']([^"']+)["']/i,
+            /let\s+theme\s*=\s*["']([^"']+)["']/i,
+            /const\s+theme\s*=\s*["']([^"']+)["']/i,
+            /"theme_name":\s*["']([^"']+)["']/i,
+            /'theme_name':\s*['"]([^'"]+)['"]/i,
+            /"themeName":\s*["']([^"']+)["']/i,
+            /'themeName':\s*['"]([^'"]+)['"]/i
+        ];
+
+        for (const pattern of patterns) {
+            const themeMatch = match.match(pattern);
+            if (themeMatch && themeMatch[1]) {
+                const themeName = themeMatch[1].trim();
+                if (themeName.length > 0) {
+                    return themeName;
+                }
+            }
+        }
+
         return null;
     }
 
