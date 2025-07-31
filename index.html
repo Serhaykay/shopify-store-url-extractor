@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Store URL Extractor - Chrome Extension</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .demo-section {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .demo-title {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: #333;
+            text-align: center;
+        }
+
+        .demo-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e1e5e9;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .extract-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .extract-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .result-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #e1e5e9;
+        }
+
+        .result-item {
+            margin-bottom: 16px;
+        }
+
+        .result-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .result-url {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .feature {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        .feature h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .feature p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .installation {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .installation h2 {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            text-align: center;
+            color: #333;
+        }
+
+        .steps {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .step-description {
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .github-link {
+            display: inline-block;
+            background: #333;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .github-link:hover {
+            background: #555;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            color: white;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ Shopify Store URL Extractor</h1>
+            <p>Extract original Shopify store URLs from any website with this powerful Chrome extension</p>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Live Demo</h2>
+            <div class="demo-container">
+                <div class="input-group">
+                    <input type="url" class="url-input" id="demoInput" placeholder="https://example.com" value="https://mystore.com">
+                    <button class="extract-btn" onclick="demoExtract()">Extract</button>
+                </div>
+                <div class="result-section" id="demoResult" style="display: none;">
+                    <div class="result-item">
+                        <div class="result-label">Original URL</div>
+                        <div class="result-url" id="demoOriginalUrl"></div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Shopify Store URL</div>
+                        <div class="result-url" id="demoShopifyUrl"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🔍</div>
+                <h3>Smart Detection</h3>
+                <p>Automatically detects Shopify stores using multiple analysis methods including domain analysis, meta tag scanning, and script detection.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎯</div>
+                <h3>Multiple Patterns</h3>
+                <p>Handles various URL formats including custom domains, subdomains, and direct Shopify URLs with intelligent pattern matching.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📋</div>
+                <h3>One-Click Copy</h3>
+                <p>Copy extracted URLs to your clipboard with a single click, making it easy to use the results in your workflow.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎨</div>
+                <h3>Modern UI</h3>
+                <p>Clean, professional interface with smooth animations and intuitive design that works seamlessly in Chrome.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h3>Fast Performance</h3>
+                <p>Lightweight and responsive extension that provides instant results without any external API dependencies.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <h3>Privacy Focused</h3>
+                <p>No data collection or external API calls. All processing happens locally in your browser for maximum privacy.</p>
+            </div>
+        </div>
+
+        <div class="installation">
+            <h2>Installation Guide</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <div class="step-title">Download the Extension</div>
+                        <div class="step-description">Clone or download this repository to your local machine</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <div class="step-title">Open Chrome Extensions</div>
+                        <div class="step-description">Navigate to chrome://extensions/ in your Chrome browser</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <div class="step-title">Enable Developer Mode</div>
+                        <div class="step-description">Toggle the "Developer mode" switch in the top right corner</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <div class="step-title">Load the Extension</div>
+                        <div class="step-description">Click "Load unpacked" and select the folder containing this extension</div>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <div class="step-title">Start Using</div>
+                        <div class="step-description">The extension will appear in your toolbar and you can start extracting Shopify URLs</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="https://github.com/yourusername/shopify-store-url-extractor" class="github-link" target="_blank">
+                    📦 View on GitHub
+                </a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Made with ❤️ for the Shopify community</p>
+        </div>
+    </div>
+
+    <script>
+        function demoExtract() {
+            const input = document.getElementById('demoInput');
+            const result = document.getElementById('demoResult');
+            const originalUrl = document.getElementById('demoOriginalUrl');
+            const shopifyUrl = document.getElementById('demoShopifyUrl');
+            
+            const url = input.value.trim();
+            
+            if (!url) {
+                alert('Please enter a valid URL');
+                return;
+            }
+            
+            // Simulate extraction
+            const urlObj = new URL(url);
+            const hostname = urlObj.hostname.toLowerCase();
+            const domainParts = hostname.split('.');
+            const storeName = domainParts[0].replace(/[^a-z0-9]/g, '');
+            
+            originalUrl.textContent = url;
+            shopifyUrl.textContent = `https://${storeName}.myshopify.com`;
+            result.style.display = 'block';
+        }
+        
+        // Auto-extract on page load
+        window.addEventListener('load', () => {
+            setTimeout(demoExtract, 1000);
+        });
+    </script>
+</body>
+</html> 
