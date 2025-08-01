@@ -127,73 +127,85 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function extractShopifyInfo(url) {
-        try {
-            // First, try to get the current tab and analyze the page
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            
-            if (!tab) {
-                throw new Error('No active tab found');
-            }
-
-            // Check if the tab is accessible (not an error page)
-            if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('about:'))) {
-                throw new Error('Cannot access this page type');
-            }
-
-            // Navigate to the URL if needed
-            if (tab.url !== url) {
-                try {
-                    await chrome.tabs.update(tab.id, { url: url });
-                    
-                    // Wait for the page to load with timeout
-                    await new Promise((resolve, reject) => {
-                        const timeout = setTimeout(() => {
-                            chrome.tabs.onUpdated.removeListener(listener);
-                            reject(new Error('Page load timeout'));
-                        }, 10000); // 10 second timeout
-                        
-                        chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-                            if (tabId === tab.id && changeInfo.status === 'complete') {
-                                clearTimeout(timeout);
-                                chrome.tabs.onUpdated.removeListener(listener);
-                                resolve();
-                            }
-                        });
-                    });
-                } catch (navError) {
-                    console.log('Navigation failed, trying direct analysis:', navError.message);
-                    // Continue with direct analysis
-                }
-            }
-
-            // Try to execute content script to get page info
+        console.log('Starting Shopify info extraction for:', url);
+        
+        // Add overall timeout to prevent infinite loops
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Extraction timeout - taking too long')), 15000);
+        });
+        
+        const extractionPromise = async () => {
             try {
-                const results = await chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    function: getPageInfo
-                });
-
-                if (results && results[0] && results[0].result) {
-                    const pageInfo = results[0].result;
-                    console.log('Page info:', pageInfo);
-
-                    // Try multiple methods to get Shopify info
-                    const shopifyInfo = await tryShopifyAPIMethods(url, pageInfo);
-                    return shopifyInfo;
-                } else {
-                    throw new Error('Failed to get page information');
+                // First, try to get the current tab and analyze the page
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                
+                if (!tab) {
+                    console.log('No active tab found, using direct analysis');
+                    return await analyzeUrlDirectly(url, true); // true = isDirectCall
                 }
-            } catch (scriptError) {
-                console.log('Script injection failed, trying direct analysis:', scriptError.message);
-                // Fall back to direct analysis
-                return await analyzeUrlDirectly(url);
-            }
 
-        } catch (error) {
-            console.error('Error extracting Shopify info:', error);
-            // Fallback to direct URL analysis
-            return await analyzeUrlDirectly(url);
-        }
+                // Check if the tab is accessible (not an error page)
+                if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('about:'))) {
+                    console.log('Cannot access this page type, using direct analysis');
+                    return await analyzeUrlDirectly(url, true);
+                }
+
+                // Navigate to the URL if needed
+                if (tab.url !== url) {
+                    try {
+                        await chrome.tabs.update(tab.id, { url: url });
+                        
+                        // Wait for the page to load with timeout
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                chrome.tabs.onUpdated.removeListener(listener);
+                                reject(new Error('Page load timeout'));
+                            }, 10000); // 10 second timeout
+                            
+                            chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+                                if (tabId === tab.id && changeInfo.status === 'complete') {
+                                    clearTimeout(timeout);
+                                    chrome.tabs.onUpdated.removeListener(listener);
+                                    resolve();
+                                }
+                            });
+                        });
+                    } catch (navError) {
+                        console.log('Navigation failed, using direct analysis:', navError.message);
+                        return await analyzeUrlDirectly(url, true);
+                    }
+                }
+
+                // Try to execute content script to get page info
+                try {
+                    const results = await chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        function: getPageInfo
+                    });
+
+                    if (results && results[0] && results[0].result) {
+                        const pageInfo = results[0].result;
+                        console.log('Page info:', pageInfo);
+
+                        // Try multiple methods to get Shopify info
+                        const shopifyInfo = await tryShopifyAPIMethods(url, pageInfo);
+                        return shopifyInfo;
+                    } else {
+                        throw new Error('Failed to get page information');
+                    }
+                } catch (scriptError) {
+                    console.log('Script injection failed, using direct analysis:', scriptError.message);
+                    return await analyzeUrlDirectly(url, true);
+                }
+
+            } catch (error) {
+                console.error('Error extracting Shopify info:', error);
+                return await analyzeUrlDirectly(url, true);
+            }
+        };
+        
+        // Race between extraction and timeout
+        return Promise.race([extractionPromise(), timeoutPromise]);
     }
 
     // Function to be executed in content script context
@@ -494,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ].filter(name => name.length > 2);
     }
 
-    async function analyzeUrlDirectly(url) {
+    async function analyzeUrlDirectly(url, isDirectCall = false) {
         console.log('Analyzing URL directly without tab injection:', url);
         
         try {
@@ -528,17 +540,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return { shopifyUrl: url, themeName: null };
         }
 
-        // Try Shopify API directly
-        try {
-            const apiResult = await tryStorefrontAPI(url);
-            if (apiResult) {
-                return apiResult;
+        // Only try Shopify API if this is not a direct call (to prevent loops)
+        if (!isDirectCall) {
+            try {
+                const apiResult = await tryStorefrontAPI(url);
+                if (apiResult) {
+                    return apiResult;
+                }
+            } catch (apiError) {
+                console.log('API analysis failed:', apiError.message);
             }
-        } catch (apiError) {
-            console.log('API analysis failed:', apiError.message);
         }
 
-        throw new Error('Could not determine Shopify store URL. The site might not be a Shopify store.');
+        // Final fallback - return a simple error
+        console.log('Could not determine Shopify store URL');
+        return { shopifyUrl: null, themeName: null };
     }
 
     async function analyzeUrlPatterns(url) {
