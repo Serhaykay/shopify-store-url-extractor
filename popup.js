@@ -249,7 +249,24 @@ document.addEventListener('DOMContentLoaded', function() {
             // Comments
             /<!--[^>]*shop[^>]*([a-zA-Z0-9-]+)[^>]*-->/,
             // Inline styles
-            /background-image:\s*url\([^)]*myshopify\.com\/([a-zA-Z0-9-]+)[^)]*\)/
+            /background-image:\s*url\([^)]*myshopify\.com\/([a-zA-Z0-9-]+)[^)]*\)/,
+            // Additional patterns for better detection
+            /"domain":"([a-zA-Z0-9-]+)\.myshopify\.com"/,
+            /'domain':'([a-zA-Z0-9-]+)\.myshopify\.com'/,
+            /domain:"([a-zA-Z0-9-]+)\.myshopify\.com"/,
+            /domain:'([a-zA-Z0-9-]+)\.myshopify\.com'/,
+            // Shopify theme assets
+            /\/themes\/[^\/]+\/assets\/[^"]*shop\/([a-zA-Z0-9-]+)/,
+            // Shopify checkout URLs
+            /checkout\.shopify\.com\/c\/[^\/]+\/([a-zA-Z0-9-]+)/,
+            // Shopify admin URLs
+            /admin\.shopify\.com\/stores\/([a-zA-Z0-9-]+)/,
+            // Shopify app URLs
+            /apps\.shopify\.com\/[^\/]+\/([a-zA-Z0-9-]+)/,
+            // Shopify partner URLs
+            /partners\.shopify\.com\/[^\/]+\/([a-zA-Z0-9-]+)/,
+            // Shopify community URLs
+            /community\.shopify\.com\/[^\/]+\/([a-zA-Z0-9-]+)/
         ];
 
         for (const pattern of patterns) {
@@ -259,6 +276,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Validate store ID format (should be alphanumeric with hyphens, 3+ chars)
                 if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length >= 3 && storeId.length <= 50) {
                     console.log('Found store ID:', storeId, 'using pattern:', pattern.source);
+                    return storeId;
+                }
+            }
+        }
+
+        // Fallback: Search for any myshopify.com pattern in the entire HTML
+        const myshopifyPattern = /([a-zA-Z0-9-]+)\.myshopify\.com/g;
+        const matches = html.match(myshopifyPattern);
+        if (matches) {
+            for (const match of matches) {
+                const storeId = match.replace('.myshopify.com', '');
+                if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length >= 3 && storeId.length <= 50) {
+                    console.log('Found store ID from fallback search:', storeId);
                     return storeId;
                 }
             }
@@ -358,38 +388,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Method 4: Try to construct myshopify.com URL from domain (fallback)
-        const domainParts = hostname.split('.');
-        if (domainParts.length >= 2) {
-            const subdomain = domainParts[0];
-            const myshopifyUrl = `https://${subdomain}.myshopify.com`;
-            
-            // Test if the myshopify URL exists
-            try {
-                const testResult = await testShopifyURL(myshopifyUrl);
-                if (testResult) {
-                    console.log('Using domain-based myshopify URL:', myshopifyUrl);
-                    return { shopifyUrl: myshopifyUrl, themeName: pageInfo.themeName };
-                }
-            } catch (error) {
-                console.log('URL test failed:', error.message);
-            }
-        }
+        // Method 4: Try to construct myshopify.com URL from domain (DISABLED - causes wrong results)
+        // This method was causing incorrect URLs like palina.myshopify.com
+        // Instead, we'll rely on the API and page source analysis only
+        console.log('Skipping domain-based fallback to avoid incorrect results');
 
-        // Method 5: Try common store name patterns (last resort)
-        const potentialStoreNames = generatePotentialStoreNames(hostname);
-        for (const storeName of potentialStoreNames) {
-            try {
-                const testUrl = `https://${storeName}.myshopify.com`;
-                const testResult = await testShopifyURL(testUrl);
-                if (testResult) {
-                    console.log('Using generated store name:', storeName);
-                    return { shopifyUrl: testUrl, themeName: pageInfo.themeName };
-                }
-            } catch (error) {
-                continue;
-            }
-        }
+        // Method 5: Try common store name patterns (DISABLED - causes wrong results)
+        // This method was causing incorrect URLs like palina.myshopify.com
+        console.log('Skipping generated store names to avoid incorrect results');
 
         throw new Error('Could not determine Shopify store URL. The site might not be a Shopify store.');
     }
