@@ -105,15 +105,15 @@ document.addEventListener('DOMContentLoaded', function() {
         originalUrl.textContent = originalUrlText;
         shopifyUrl.textContent = shopifyUrlText;
         
-        // Add theme name to the result if found
+        // Show/hide theme name section
+        const themeItem = document.getElementById('themeItem');
+        const themeNameElement = document.getElementById('themeName');
+        
         if (themeName) {
-            const themeElement = document.createElement('div');
-            themeElement.className = 'result-item';
-            themeElement.innerHTML = `
-                <label>Theme Name:</label>
-                <div class="url-display">${themeName}</div>
-            `;
-            resultSection.appendChild(themeElement);
+            themeNameElement.textContent = themeName;
+            themeItem.style.display = 'block';
+        } else {
+            themeItem.style.display = 'none';
         }
         
         resultSection.style.display = 'block';
@@ -121,13 +121,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function hideResult() {
         resultSection.style.display = 'none';
-        // Remove any existing theme elements
-        const themeElements = resultSection.querySelectorAll('.result-item:last-child');
-        themeElements.forEach(el => {
-            if (el.querySelector('label').textContent === 'Theme Name:') {
-                el.remove();
-            }
-        });
+        // Hide theme section
+        const themeItem = document.getElementById('themeItem');
+        themeItem.style.display = 'none';
     }
 
     async function extractShopifyInfo(url) {
@@ -150,7 +146,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.log('Fetch failed, trying alternative methods:', error.message);
             // If fetch fails due to CORS, try alternative methods
-            return await analyzeUrlPatterns(url);
+            const fallbackResult = await analyzeUrlPatterns(url);
+            return { shopifyUrl: fallbackResult, themeName: null };
         }
     }
 
@@ -247,12 +244,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 for (const match of matches) {
                     const storeId = extractStoreId(match);
                     if (storeId) {
+                        console.log('Found store ID:', storeId);
                         return `https://${storeId}.myshopify.com`;
                     }
                 }
             }
         }
 
+        console.log('No store ID found in scripts');
         return null;
     }
 
@@ -406,11 +405,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const storeId = match[1];
                 // Validate store ID format (should be alphanumeric with hyphens)
                 if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length > 3) {
+                    console.log('Extracted store ID:', storeId, 'from pattern:', pattern);
                     return storeId;
                 }
             }
         }
 
+        console.log('No valid store ID found in string');
         return null;
     }
 
