@@ -377,18 +377,19 @@
                 return;
             }
             
-            // Simulate extraction
+            // DEMO ONLY - This is just a simulation for the demo page
+            // The actual extension uses advanced page source analysis
             const urlObj = new URL(url);
             const hostname = urlObj.hostname.toLowerCase();
             const domainParts = hostname.split('.');
             const storeName = domainParts[0].replace(/[^a-z0-9]/g, '');
             
             originalUrl.textContent = url;
-            shopifyUrl.textContent = `https://${storeName}.myshopify.com`;
+            shopifyUrl.textContent = `https://${storeName}.myshopify.com (DEMO - Install extension for real results)`;
             result.style.display = 'block';
         }
         
-        // Auto-extract on page load
+        // Auto-extract on page load (demo only)
         window.addEventListener('load', () => {
             setTimeout(demoExtract, 1000);
         });
