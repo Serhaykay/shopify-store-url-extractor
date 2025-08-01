@@ -4,13 +4,21 @@
     box-sizing: border-box;
 }
 
+/* Chrome extension popup specific styles */
+html, body {
+    width: 100%;
+    min-width: 350px;
+    max-width: 450px;
+    overflow-x: hidden;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 .container {
@@ -18,8 +26,10 @@ body {
     border-radius: 12px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
     padding: 24px;
-    width: 400px;
-    max-width: 90vw;
+    width: 100%;
+    min-width: 350px;
+    max-width: 450px;
+    margin: 0 auto;
 }
 
 .header {
@@ -54,6 +64,18 @@ body {
 .input-group {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 400px) {
+    .input-group {
+        flex-direction: column;
+    }
+    
+    #extractBtn {
+        width: 100%;
+        margin-top: 8px;
+    }
 }
 
 #urlInput {
