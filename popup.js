@@ -187,6 +187,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Extract theme name
         const themeName = extractThemeNameFromPage(html);
         
+        console.log('Page analysis results:');
+        console.log('- URL:', url);
+        console.log('- Hostname:', hostname);
+        console.log('- Store ID found:', storeId);
+        console.log('- Theme name found:', themeName);
+        console.log('- HTML length:', html.length);
+        
         return {
             url,
             hostname,
@@ -198,6 +205,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function extractStoreIdFromPage(html) {
         const patterns = [
+            // Shopify JSON-LD structured data
+            /"@type":"Organization"[^}]*"url":"https:\/\/([a-zA-Z0-9-]+)\.myshopify\.com"/,
             /"shop":"([a-zA-Z0-9-]+)"/,
             /'shop':'([a-zA-Z0-9-]+)'/,
             /shop:"([a-zA-Z0-9-]+)"/,
@@ -210,20 +219,46 @@ document.addEventListener('DOMContentLoaded', function() {
             /'shop_id':'([a-zA-Z0-9-]+)'/,
             /shop_id:"([a-zA-Z0-9-]+)"/,
             /shop_id:'([a-zA-Z0-9-]+)'/,
+            /"myshopifyDomain":"([a-zA-Z0-9-]+)"/,
+            /'myshopifyDomain':'([a-zA-Z0-9-]+)'/,
+            /myshopifyDomain:"([a-zA-Z0-9-]+)"/,
+            /myshopifyDomain:'([a-zA-Z0-9-]+)'/,
+            // Direct myshopify.com URLs
             /https?:\/\/([a-zA-Z0-9-]+)\.myshopify\.com/,
             /"([a-zA-Z0-9-]+)\.myshopify\.com"/,
             /'([a-zA-Z0-9-]+)\.myshopify\.com'/,
+            // Shopify admin and store URLs
             /shopify\.com\/admin\/stores\/([a-zA-Z0-9-]+)/,
             /shopify\.com\/s\/([a-zA-Z0-9-]+)/,
+            // CDN patterns
             /cdn\.shopify\.com\/s\/files\/[^\/]+\/([a-zA-Z0-9-]+)/,
-            /cdn\.shopify\.com\/s\/[^\/]+\/([a-zA-Z0-9-]+)/
+            /cdn\.shopify\.com\/s\/[^\/]+\/([a-zA-Z0-9-]+)/,
+            // Shopify API endpoints
+            /\/api\/[^\/]+\/graphql\.json[^}]*"shop"[^}]*"myshopifyDomain":"([a-zA-Z0-9-]+)"/,
+            // Meta tags
+            /<meta[^>]*property="og:url"[^>]*content="[^"]*myshopify\.com\/([a-zA-Z0-9-]+)"/,
+            // Script variables
+            /window\.Shopify\s*=\s*{[^}]*"shop":"([a-zA-Z0-9-]+)"/,
+            /window\.shop\s*=\s*"([a-zA-Z0-9-]+)"/,
+            // Shopify theme settings
+            /"shopify_shop":"([a-zA-Z0-9-]+)"/,
+            /'shopify_shop':'([a-zA-Z0-9-]+)'/,
+            // Data attributes
+            /data-shop="([a-zA-Z0-9-]+)"/,
+            /data-shop-id="([a-zA-Z0-9-]+)"/,
+            // Comments
+            /<!--[^>]*shop[^>]*([a-zA-Z0-9-]+)[^>]*-->/,
+            // Inline styles
+            /background-image:\s*url\([^)]*myshopify\.com\/([a-zA-Z0-9-]+)[^)]*\)/
         ];
 
         for (const pattern of patterns) {
             const match = html.match(pattern);
             if (match && match[1]) {
                 const storeId = match[1];
-                if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length > 3) {
+                // Validate store ID format (should be alphanumeric with hyphens, 3+ chars)
+                if (/^[a-zA-Z0-9-]+$/.test(storeId) && storeId.length >= 3 && storeId.length <= 50) {
+                    console.log('Found store ID:', storeId, 'using pattern:', pattern.source);
                     return storeId;
                 }
             }
@@ -295,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return { shopifyUrl: url, themeName: pageInfo.themeName };
         }
 
-        // Method 1: Try using the store ID from page source
+        // Method 1: Try using the store ID from page source (highest priority)
         if (pageInfo.storeId) {
             const shopifyUrl = `https://${pageInfo.storeId}.myshopify.com`;
             console.log('Using store ID from page source:', pageInfo.storeId);
@@ -306,13 +341,24 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const storefrontResult = await tryStorefrontAPI(url);
             if (storefrontResult) {
+                console.log('Using Storefront API result:', storefrontResult.shopifyUrl);
                 return { shopifyUrl: storefrontResult.shopifyUrl, themeName: pageInfo.themeName || storefrontResult.themeName };
             }
         } catch (error) {
             console.log('Storefront API failed:', error.message);
         }
 
-        // Method 3: Try to construct myshopify.com URL from domain
+        // Method 3: Try to extract store ID from page HTML more aggressively
+        if (pageInfo.html) {
+            const extractedStoreId = extractStoreIdFromPage(pageInfo.html);
+            if (extractedStoreId) {
+                const shopifyUrl = `https://${extractedStoreId}.myshopify.com`;
+                console.log('Using extracted store ID from HTML:', extractedStoreId);
+                return { shopifyUrl, themeName: pageInfo.themeName };
+            }
+        }
+
+        // Method 4: Try to construct myshopify.com URL from domain (fallback)
         const domainParts = hostname.split('.');
         if (domainParts.length >= 2) {
             const subdomain = domainParts[0];
@@ -322,6 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const testResult = await testShopifyURL(myshopifyUrl);
                 if (testResult) {
+                    console.log('Using domain-based myshopify URL:', myshopifyUrl);
                     return { shopifyUrl: myshopifyUrl, themeName: pageInfo.themeName };
                 }
             } catch (error) {
@@ -329,13 +376,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Method 4: Try common store name patterns
+        // Method 5: Try common store name patterns (last resort)
         const potentialStoreNames = generatePotentialStoreNames(hostname);
         for (const storeName of potentialStoreNames) {
             try {
                 const testUrl = `https://${storeName}.myshopify.com`;
                 const testResult = await testShopifyURL(testUrl);
                 if (testResult) {
+                    console.log('Using generated store name:', storeName);
                     return { shopifyUrl: testUrl, themeName: pageInfo.themeName };
                 }
             } catch (error) {
