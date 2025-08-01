@@ -5,7 +5,8 @@
   "description": "Extract original Shopify store URLs from website URLs",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://*/*",
